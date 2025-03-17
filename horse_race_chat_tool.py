@@ -33,6 +33,7 @@ def predict_best_horse(race_data, track_condition, live_odds):
     horse_number = str(horse.get('number', ''))
     if horse_number in map(str, live_odds.keys()):
         horse_odds = live_odds[horse_number]
+        horse_odds = live_odds[horse_number]
     if horse_number in map(str, live_odds.keys()):
         horse_odds = live_odds[horse_number]
 horse_number = str(horse.get('number', ''))
