@@ -1,8 +1,5 @@
 import json
 import streamlit as st
-from PIL import Image
-import pytesseract
-
 def extract_text_from_image(image):
     """Extracts text from an uploaded image of a race card."""
     text = pytesseract.image_to_string(image)
