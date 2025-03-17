@@ -27,8 +27,14 @@ def parse_race_card(text):
 def predict_best_horse(race_data, track_condition, live_odds):
     """Predicts the best horse based on conditions, live odds, and past wins."""
     for horse in race_data:
-       if isinstance(live_odds, dict) and str(horse.get('number', '')) in map(str, live_odds.keys()):
-            horse['odds'] = live_odds[horse['number']]
+      # Ensure live_odds is always a dictionary
+if not isinstance(live_odds, dict):
+    live_odds = {}
+
+# Ensure horse number exists in live_odds before accessing it
+horse_number = str(horse.get('number', ''))
+if horse_number in map(str, live_odds.keys()):
+    horse_odds = live_odds[horse_number]  # Safely access the odds
     
     sorted_horses = sorted(
         race_data,
