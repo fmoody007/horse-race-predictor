@@ -27,7 +27,7 @@ def parse_race_card(text):
 def predict_best_horse(race_data, track_condition, live_odds):
     """Predicts the best horse based on conditions, live odds, and past wins."""
     for horse in race_data:
-        if horse['number'] in live_odds:
+        if str(horse['number']) in live_odds:
             horse['odds'] = live_odds[horse['number']]
     
     sorted_horses = sorted(
