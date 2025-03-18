@@ -1,12 +1,10 @@
 streamlit
 pandas
 numpy
-pillow
-opencv-python-headless
+pytesseract
 easyocr
-torch
-torchvision
-tqdm
-shapely
-scipy
+opencv-python-headless
+Pillow
 matplotlib
+scikit-learn
+requests
