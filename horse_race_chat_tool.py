@@ -1,94 +1,95 @@
 import streamlit as st
 import pandas as pd
-import json
-import requests
-from PIL import Image
 import numpy as np
-import io
+import pytesseract
+from PIL import Image
+import json
+import easyocr
 
-st.title("🏇 Horse Race Predictor - Image & JSON Auto Extraction")
+# Initialize OCR reader
+reader = easyocr.Reader(["en"])
 
-# **OCR API Function (For Image Extraction)**
-def extract_text_from_image(image_file):
-    api_key = "helloworld"  # Free demo key from OCR.Space
-    url = "https://api.ocr.space/parse/image"
+# Function to extract text from an image
+def extract_text_from_image(image):
+    extracted_text = reader.readtext(image, detail=0)
+    return "\n".join(extracted_text)
+
+# Function to process JSON race card
+def load_race_data(json_file):
+    try:
+        race_data = json.load(json_file)
+        return race_data
+    except Exception as e:
+        st.error(f"Error loading race data: {e}")
+        return None
+
+# Function to predict the best horses
+def predict_best_horses(race_data, track_condition, live_odds):
+    horses = []
     
-    image_bytes = io.BytesIO()
-    image_file.save(image_bytes, format="PNG")
-    image_bytes = image_bytes.getvalue()
+    for horse in race_data["horses"]:
+        horse_number = str(horse.get("number", ""))
+        odds = live_odds.get(horse_number, "N/A")
 
-    response = requests.post(
-        url,
-        files={"filename": ("image.png", image_bytes, "image/png")},
-        data={"apikey": api_key, "language": "eng"}
-    )
-
-    result = response.json()
+        # Use a scoring system based on odds and other factors
+        performance_score = np.random.uniform(0, 1)  # Placeholder scoring system
+        
+        horses.append({
+            "number": horse_number,
+            "name": horse["name"],
+            "odds": odds,
+            "score": performance_score
+        })
     
-    if result.get("ParsedResults"):
-        return result["ParsedResults"][0]["ParsedText"]
-    else:
-        return "❌ OCR Failed! Try another image."
+    # Sort horses based on the highest score
+    horses_sorted = sorted(horses, key=lambda x: x["score"], reverse=True)
 
-# **Horse Prediction Model**
-def predict_best_horses(race_data):
-    if not race_data or "horses" not in race_data:
-        return "❌ No race data found!"
+    return horses_sorted[:3] if horses_sorted else []
 
-    horses = race_data["horses"]
-    horse_df = pd.DataFrame(horses)
+# Streamlit UI
+st.title("🏇 Horse Race Predictor")
+st.write("Upload a race card image or JSON file to analyze and predict race outcomes.")
 
-    # Basic horse ranking logic (Can be improved with AI in the future)
-    horse_df["odds_numeric"] = horse_df["odds"].astype(str).replace({"/": "."}, regex=True).astype(float)
-    horse_df = horse_df.sort_values(by=["odds_numeric"], ascending=True)  # Lower odds = better ranking
-
-    # Select top 3
-    top_3_horses = horse_df.head(3)
-    winner = top_3_horses.iloc[0]
-    runner_up = top_3_horses.iloc[1] if len(top_3_horses) > 1 else None
-    third_place = top_3_horses.iloc[2] if len(top_3_horses) > 2 else None
-
-    # Display results
-    st.subheader("🏆 Prediction Results:")
-    st.success(f"🥇 Winner: {winner['horse']} ({winner['odds']})")
-    if runner_up is not None:
-        st.info(f"🥈 Runner-Up: {runner_up['horse']} ({runner_up['odds']})")
-    if third_place is not None:
-        st.warning(f"🥉 Third Place: {third_place['horse']} ({third_place['odds']})")
-
-# **File Upload (Image or JSON)**
+# Upload section
 uploaded_file = st.file_uploader("Upload Race Card (Image or JSON)", type=["png", "jpg", "jpeg", "json"])
 
-if uploaded_file is not None:
-    file_type = uploaded_file.name.split(".")[-1].lower()
+# Track condition selection
+track_condition = st.selectbox("Select Track Condition", ["Fast", "Sloppy", "Muddy", "Good"])
 
-    if file_type in ["png", "jpg", "jpeg"]:  
-        # Process Image
-        image = Image.open(uploaded_file)
-        st.image(image, caption="📸 Uploaded Race Card", use_column_width=True)
-        
-        # Extract text via OCR API
-        extracted_text = extract_text_from_image(image)
-        st.subheader("🔍 Extracted Race Details:")
-        st.text(extracted_text)
+# Live odds input
+live_odds_input = st.text_area("Enter Live Odds (JSON format, e.g., {'2': '2/1', '4': '5/2'})")
 
-        # **TODO: Convert extracted text to structured race data**
-        # (Future improvement: Auto-convert text into JSON format)
+# Convert live odds input to dictionary
+try:
+    live_odds = json.loads(live_odds_input) if live_odds_input else {}
+except json.JSONDecodeError:
+    st.error("Invalid JSON format for live odds.")
+    live_odds = {}
 
-    elif file_type == "json":  
-        # Process JSON
-        json_data = uploaded_file.getvalue().decode("utf-8")
-        try:
-            race_data = json.loads(json_data)
-            race_df = pd.DataFrame(race_data["horses"])
-            st.subheader("🏇 Race Data Extracted:")
-            st.write(race_df)
-
-            # **Run Prediction Model**
-            predict_best_horses(race_data)
-
-        except Exception as e:
-            st.error(f"❌ Error processing JSON: {e}")
-
+if uploaded_file:
+    if uploaded_file.type == "application/json":
+        # Process JSON file
+        race_data = load_race_data(uploaded_file)
     else:
-        st.error("❌ Unsupported file format. Please upload PNG, JPG, or JSON.")
+        # Process image file
+        st.image(uploaded_file, caption="📸 Uploaded Race Card", use_container_width=True)
+        extracted_text = extract_text_from_image(uploaded_file)
+        st.text_area("Extracted Race Card Text", extracted_text, height=200)
+        st.warning("⚠️ Image processing is still experimental. Verify extracted data.")
+
+        # Placeholder for extracted race data (would need structured parsing)
+        race_data = {"horses": []}  # Modify this to parse race details from text
+    
+    # Make predictions
+    if race_data and race_data.get("horses"):
+        best_horses = predict_best_horses(race_data, track_condition, live_odds)
+
+        # Display predictions
+        if best_horses:
+            st.subheader("🏆 Predicted Top Horses")
+            for i, horse in enumerate(best_horses, 1):
+                st.write(f"**#{i} - {horse['name']}** (Odds: {horse['odds']})")
+        else:
+            st.warning("⚠️ No clear best horse found. Please check the input data.")
+    else:
+        st.error("❌ No race data found in the uploaded file.")
