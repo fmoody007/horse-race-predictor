@@ -1,55 +1,53 @@
 import streamlit as st
-import json
-import numpy as np
+import pytesseract
+from PIL import Image
 import pandas as pd
+import numpy as np
+import json
 
-# Streamlit UI Header
-st.title("🏇 Horse Race Predictor")
+def extract_text_from_image(image):
+    text = pytesseract.image_to_string(image)
+    return text
 
-# File Upload: Race Card (Image)
-uploaded_image = st.file_uploader("Upload Race Card (Image)", type=["png", "jpg", "jpeg"])
+def load_race_data(file):
+    if file.name.endswith('.json'):
+        return json.load(file)
+    elif file.name.lower().endswith(('.png', '.jpg', '.jpeg')):
+        extracted_text = extract_text_from_image(Image.open(file))
+        return {'raw_text': extracted_text}
+    else:
+        return None
 
-# File Upload: Race Data (JSON)
-uploaded_json = st.file_uploader("Upload Race Data (JSON format)", type=["json"])
-
-# Track Condition Dropdown
-track_condition = st.selectbox("Track Condition", ["Fast", "Sloppy", "Turf"])
-
-# Live Odds Input
-live_odds_input = st.text_area("Enter Live Odds (JSON format, e.g., {2: '2/1', 4: '5/2'})")
-
-# Function: Predict Best Horse
 def predict_best_horse(race_data, track_condition, live_odds):
+    if not race_data or 'horses' not in race_data:
+        return "No valid race data found."
+    
+    horses = race_data['horses']
     best_horse = None
-    highest_odds = float("inf")
-
-    for horse in race_data["horses"]:
-        horse_number = str(horse.get("number", ""))
-        if isinstance(live_odds, dict) and horse_number in map(str, live_odds.keys()):
-            odds_value = live_odds[horse_number]
-            numeric_odds = sum(map(float, odds_value.split("/"))) if "/" in odds_value else float(odds_value)
-
-            if numeric_odds < highest_odds:
-                highest_odds = numeric_odds
-                best_horse = horse["name"]
-
+    best_odds = float('inf')
+    
+    for horse in horses:
+        horse_number = str(horse.get('number', ''))
+        if horse_number in live_odds:
+            odds = live_odds[horse_number]
+            numeric_odds = eval(odds.replace('/', '/'))
+            if numeric_odds < best_odds:
+                best_odds = numeric_odds
+                best_horse = horse['name']
+    
     return best_horse if best_horse else "No clear best horse found."
 
-# Processing JSON Data
-race_data = None
-if uploaded_json:
-    race_data = json.load(uploaded_json)
+st.title("🐎 Horse Race Predictor 🏆")
 
-# Convert Live Odds Input (Text) to Dictionary
-try:
-    live_odds = json.loads(live_odds_input) if live_odds_input else {}
-except json.JSONDecodeError:
-    live_odds = {}
-    st.error("Invalid JSON format in Live Odds input. Please correct it.")
+uploaded_file = st.file_uploader("Upload Race Card (Image or JSON)", type=["png", "jpg", "jpeg", "json"])
+track_condition = st.selectbox("Track Condition", ["Fast", "Sloppy", "Turf", "Synthetic"])
+live_odds_input = st.text_area("Enter Live Odds (JSON format, e.g., {2: '2/1', 4: '5/2'})")
 
-# Process Prediction
-if race_data and isinstance(race_data, dict):  # ✅ FIXED: Ensures correct format
-    best_horse = predict_best_horse(race_data, track_condition, live_odds)
-    st.success(f"🏆 Best Horse Prediction: **{best_horse}**")
-else:
-    st.warning("Please upload valid race data to proceed.")
+if st.button("Run Prediction"):
+    if uploaded_file is not None:
+        race_data = load_race_data(uploaded_file)
+        live_odds = json.loads(live_odds_input) if live_odds_input else {}
+        best_horse = predict_best_horse(race_data, track_condition, live_odds)
+        st.write(f"🏆 **Best Horse Prediction:** {best_horse}")
+    else:
+        st.error("Please upload a race card file.")
