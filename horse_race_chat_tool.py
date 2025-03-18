@@ -1,19 +1,28 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import easyocr
-import cv2
-from PIL import Image
 import json
-import torch
+import easyocr
+import numpy as np
+from PIL import Image
+import re
 
 # Initialize EasyOCR reader
-reader = easyocr.Reader(["en"])
+reader = easyocr.Reader(["en"], gpu=False)
 
-# Function to extract text from an uploaded image
-def extract_text_from_image(image_path):
-    extracted_text = reader.readtext(image_path, detail=0)
-    return " ".join(extracted_text)
+# Function to extract text from an image
+def extract_text_from_image(image):
+    try:
+        image_np = np.array(image.convert("RGB"))  # Convert to numpy array
+        extracted_text = reader.readtext(image_np, detail=0)
+        return " ".join(extracted_text)
+    except Exception as e:
+        return f"Error extracting text from image: {e}"
+
+# Function to parse live odds from extracted text
+def extract_live_odds(text):
+    odds_pattern = re.compile(r"(\d+)[^\d]+(\d+/\d+|\d+)")
+    odds_dict = {match[0]: match[1] for match in odds_pattern.findall(text)}
+    return odds_dict
 
 # Function to parse race data from JSON
 def parse_json_race_data(json_file):
@@ -24,8 +33,8 @@ def parse_json_race_data(json_file):
         st.error(f"Error reading JSON file: {e}")
         return None
 
-# Function to predict the best horse based on race data and live odds
-def predict_best_horse(race_data, live_odds):
+# Function to predict top 3 horses based on odds
+def predict_best_horses(race_data, live_odds):
     if not race_data or "horses" not in race_data:
         return "No valid race data found."
 
@@ -57,8 +66,8 @@ uploaded_file = st.file_uploader("Upload Race Card (Image or JSON)", type=["png"
 # Select track condition
 track_condition = st.selectbox("Track Condition", ["Fast", "Sloppy", "Good", "Muddy"])
 
-# Enter Live Odds (JSON format)
-live_odds_input = st.text_area("Enter Live Odds (JSON format, e.g., {2: '2/1', 4: '5/2'})")
+race_data = None
+live_odds = {}
 
 if uploaded_file:
     file_type = uploaded_file.name.split(".")[-1]
@@ -67,8 +76,12 @@ if uploaded_file:
         # Process image
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Race Card", use_column_width=True)
-        extracted_text = extract_text_from_image(uploaded_file)
+        extracted_text = extract_text_from_image(image)
         st.write("Extracted Race Data:", extracted_text)
+
+        # Extract odds
+        live_odds = extract_live_odds(extracted_text)
+        st.write("Extracted Live Odds:", live_odds)
 
     elif file_type == "json":
         # Process JSON
@@ -76,17 +89,10 @@ if uploaded_file:
         if race_data:
             st.write("Parsed Race Data:", race_data)
 
-# Convert input odds
-try:
-    live_odds = json.loads(live_odds_input) if live_odds_input else {}
-except json.JSONDecodeError:
-    st.error("Invalid JSON format for odds.")
-    live_odds = {}
-
-# Predict the best horse
-if st.button("Predict Best Horse"):
-    if uploaded_file and file_type == "json":
-        result = predict_best_horse(race_data, live_odds)
-        st.write("🏆 Best Horse Prediction:", result)
+# Predict the best horses
+if st.button("Predict Best Horses"):
+    if race_data:
+        result = predict_best_horses(race_data, live_odds)
+        st.write("🏆 Best Horse Predictions (Top 3):", result)
     else:
-        st.error("Please upload a valid race data JSON file.")
+        st.error("Please upload a valid race data JSON file or an image with readable text.")
