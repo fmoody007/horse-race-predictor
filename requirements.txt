@@ -1,7 +1,12 @@
 streamlit
-pillow
-numpy
 pandas
+numpy
+pillow
+opencv-python-headless
 easyocr
-pytesseract
-opencv-python
+torch
+torchvision
+tqdm
+shapely
+scipy
+matplotlib
