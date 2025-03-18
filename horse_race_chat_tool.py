@@ -56,8 +56,8 @@ if st.button("Predict Best Horse"):
         except:
             st.error("Invalid JSON format for live odds.")
 
-    if race_data is not None and not race_data.empty::
-        best_horse = predict_best_horse(race_data, track_condition, live_odds)
+    iif race_data is not None and not race_data.empty:
+    best_horse = predict_best_horse(race_data, track_condition, live_odds)
         if best_horse:
             st.success(f"Best Horse Prediction: {best_horse['name']}")
         else:
