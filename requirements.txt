@@ -1,5 +1,7 @@
 streamlit
 pillow
-pytesseract
 numpy
 pandas
+easyocr
+pytesseract
+opencv-python
