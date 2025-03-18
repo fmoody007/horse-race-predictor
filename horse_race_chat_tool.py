@@ -1,14 +1,35 @@
 import streamlit as st
 import pandas as pd
 import json
-import easyocr
+import requests
 from PIL import Image
 import numpy as np
+import io
 
 st.title("🏇 Horse Race Predictor - Image & JSON Auto Extraction")
 
-# Initialize OCR reader (EasyOCR)
-reader = easyocr.Reader(["en"])  # English language
+# **Web-Based OCR Function**
+def extract_text_from_image(image_file):
+    api_key = "helloworld"  # Free demo key from OCR.Space
+    url = "https://api.ocr.space/parse/image"
+    
+    # Convert image to byte stream
+    image_bytes = io.BytesIO()
+    image_file.save(image_bytes, format="PNG")
+    image_bytes = image_bytes.getvalue()
+
+    response = requests.post(
+        url,
+        files={"filename": ("image.png", image_bytes, "image/png")},
+        data={"apikey": api_key, "language": "eng"}
+    )
+
+    result = response.json()
+    
+    if result.get("ParsedResults"):
+        return result["ParsedResults"][0]["ParsedText"]
+    else:
+        return "❌ OCR Failed! Try another image."
 
 # Upload file (Image or JSON)
 uploaded_file = st.file_uploader("Upload Race Card (Image or JSON)", type=["png", "jpg", "jpeg", "json"])
@@ -21,16 +42,11 @@ if uploaded_file is not None:
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Race Card", use_column_width=True)
         
-        # Convert image to array for OCR
-        image_np = np.array(image)
-        extracted_text = reader.readtext(image_np, detail=0)
+        # Extract text via OCR API
+        extracted_text = extract_text_from_image(image)
 
         st.subheader("🔍 Extracted Race Details:")
-        extracted_text_cleaned = "\n".join(extracted_text)
-        st.text(extracted_text_cleaned)
-
-        # Future: Implement logic to structure the text into a table
-        st.warning("⚠️ OCR Extracted the text! (Needs manual verification)")
+        st.text(extracted_text)
 
     elif file_type == "json":  
         # Process JSON
