@@ -1,66 +1,83 @@
 import streamlit as st
-import pytesseract
-import numpy as np
 import pandas as pd
+import pytesseract
 from PIL import Image
+import json
 
-# Function to process race card images and extract text
+# Function to process the race card image
 def extract_text_from_image(image):
     return pytesseract.image_to_string(image)
 
-# Function to determine the best horse based on race data
+# Function to process JSON race data
+def load_race_data(json_file):
+    return json.load(json_file)
+
+# Function to predict the best horse
 def predict_best_horse(race_data, track_condition, live_odds):
     best_horse = None
-    best_odds = float('inf')
+    best_score = float('-inf')
 
     for horse in race_data["horses"]:
-        if not isinstance(live_odds, dict):
-            live_odds = {}
+        horse_number = str(horse.get("number", ""))
+        
+        if isinstance(live_odds, dict) and horse_number in map(str, live_odds.keys()):
+            odds = live_odds.get(horse_number, "99/1")
+        else:
+            odds = "99/1"
 
-        horse_number = str(horse.get('number', ''))
-        if horse_number in map(str, live_odds.keys()):
-            horse_odds = live_odds[horse_number]
+        # Convert odds to numerical probability (basic estimation)
+        if "/" in odds:
+            num, denom = odds.split("/")
+            probability = float(denom) / (float(num) + float(denom))
+        else:
+            probability = 0.01  # Default fallback
 
-            # Check if this horse has better odds
-            if float(horse_odds.replace('/', '.')) < best_odds:
-                best_horse = horse
-                best_odds = float(horse_odds.replace('/', '.'))
+        # Scoring formula considering track condition, odds, and past performance
+        score = probability * 100
+
+        if score > best_score:
+            best_horse = horse
+            best_score = score
 
     return best_horse
 
-# Streamlit UI
+# Streamlit App
 st.title("Horse Race Predictor")
 
-# Upload Race Card (Image)
+# File upload section
 uploaded_image = st.file_uploader("Upload Race Card (Image)", type=["png", "jpg", "jpeg"])
-
-# Upload Race Data (JSON)
 uploaded_json = st.file_uploader("Upload Race Data (JSON format)", type=["json"])
 
-# Track Condition Selection
-track_condition = st.selectbox("Track Condition", ["Fast", "Sloppy", "Good"])
+# Track condition selection
+track_condition = st.selectbox("Track Condition", ["Fast", "Good", "Sloppy", "Muddy"])
 
-# Enter Live Odds Manually
+# Live odds input
 live_odds_input = st.text_area("Enter Live Odds (JSON format, e.g., {2: '2/1', 4: '5/2'})")
 
-# Process Inputs
-if st.button("Predict Best Horse"):
-    race_data = None
-    if uploaded_json is not None:
-        race_data = pd.read_json(uploaded_json)
+# Process user inputs
+race_data = None
+if uploaded_json:
+    race_data = json.load(uploaded_json)
 
+if live_odds_input:
+    try:
+        live_odds = json.loads(live_odds_input)
+    except json.JSONDecodeError:
+        st.error("Invalid JSON format in live odds.")
+        live_odds = {}
+else:
     live_odds = {}
-    if live_odds_input:
-        try:
-            live_odds = eval(live_odds_input)  # Ensure safe parsing
-        except:
-            st.error("Invalid JSON format for live odds.")
 
-   if race_data is not None and not race_data.empty:
+# **Fixed Indentation Issue Here**
+if race_data is not None and not race_data.empty:
     best_horse = predict_best_horse(race_data, track_condition, live_odds)
-        if best_horse:
-            st.success(f"Best Horse Prediction: {best_horse['name']}")
-        else:
-            st.warning("No best horse could be determined.")
+
+    if best_horse:
+        st.subheader("Predicted Best Horse")
+        st.write(f"🏇 **Horse Number:** {best_horse['number']}")
+        st.write(f"📌 **Horse Name:** {best_horse['name']}")
+        st.write(f"🎯 **Predicted Score:** {best_horse.get('score', 'N/A')}")
     else:
-        st.error("Please upload valid race data.")
+        st.warning("No strong prediction found.")
+else:
+    st.warning("Please upload a valid race data file.")
